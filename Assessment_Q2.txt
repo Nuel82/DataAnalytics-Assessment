@@ -1,0 +1,65 @@
+-- Query: Customer Transaction Frequency Segmentation
+--
+-- Scenario:
+--   The finance team wants to analyze how often customers transact to 
+--   segment them into frequency tiers.
+--
+-- Task:
+--   - Calculate the average number of transactions per customer per month.
+--   - Categorize customers based on this average:
+--     > High Frequency    (≥ 10 transactions/month)
+--     > Medium Frequency  (3–9 transactions/month)
+--     > Low Frequency     (≤ 2 transactions/month)
+--
+-- Tables Used:
+--   - users_customuser: user profile
+--   - savings_savingsaccount: contains transaction data
+-- ###########################################################################
+
+-- Step 1: Compute total number of transactions per user per month
+WITH user_monthly_txn AS (
+    SELECT 
+        u.id AS user_id,  -- customer ID
+        DATE_FORMAT(s.transaction_date, '%Y-%m') AS txn_month,  -- extract month
+        COUNT(s.id) AS txn_count  -- count of transactions in that month
+    FROM users_customuser u
+    JOIN savings_savingsaccount s
+        ON u.id = s.owner_id  -- join transactions to user
+    GROUP BY u.id, txn_month
+),
+
+-- Step 2: Calculate average monthly transactions per user
+avg_txn_per_user AS (
+    SELECT 
+        user_id,
+        AVG(txn_count) AS avg_txn_per_month  -- average monthly transaction count
+    FROM user_monthly_txn
+    GROUP BY user_id
+),
+
+-- Step 3: Categorize users based on average transaction frequency
+categorized_users AS (
+    SELECT 
+        user_id,
+        avg_txn_per_month,
+        CASE
+            WHEN avg_txn_per_month >= 10 THEN 'High Frequency'
+            WHEN avg_txn_per_month BETWEEN 3 AND 9 THEN 'Medium Frequency'
+            ELSE 'Low Frequency'
+        END AS frequency_category
+    FROM avg_txn_per_user
+)
+
+-- Step 4: Aggregate result to get count and average per frequency category
+SELECT 
+    frequency_category,  -- the segment (High/Medium/Low)
+    COUNT(*) AS customer_count,  -- number of users in each category
+    ROUND(AVG(avg_txn_per_month), 1) AS avg_transactions_per_month  -- average across users
+FROM categorized_users
+GROUP BY frequency_category
+ORDER BY 
+    CASE frequency_category  -- maintain logical order in output
+        WHEN 'High Frequency' THEN 1
+        WHEN 'Medium Frequency' THEN 2
+        WHEN 'Low Frequency' THEN 3
+    END;

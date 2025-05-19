@@ -1,0 +1,40 @@
+-- Customer Lifetime Value (CLV) Estimation
+-- This query calculates:
+--   - Account tenure in months
+--   - Total number of transactions
+--   - Estimated CLV using a simplified formula
+-- ###########################################################################
+
+-- Subquery to calculate tenure and total transactions per customer
+WITH customer_txn_summary AS (
+    SELECT 
+        u.id AS customer_id,                          -- Customer ID
+        u.name,                                       -- Customer Name
+        TIMESTAMPDIFF(MONTH, u.date_joined, CURDATE()) AS tenure_months,  -- Tenure in months
+        COUNT(s.id) AS total_transactions,            -- Number of transactions
+        SUM(s.confirmed_amount) AS total_transaction_value  -- Sum of transaction values (in kobo)
+    FROM users_customuser u
+    JOIN savings_savingsaccount s 
+        ON u.id = s.owner_id
+    WHERE s.confirmed_amount IS NOT NULL
+    GROUP BY u.id, u.name, u.date_joined
+)
+
+-- Final query to calculate CLV using the derived data
+SELECT 
+    customer_id,
+    name,
+    tenure_months,
+    total_transactions,
+    
+    -- Estimated CLV = (total_transactions / tenure) * 12 * avg_profit_per_transaction
+    ROUND(
+        (
+            (total_transactions / NULLIF(tenure_months, 0)) * 12 *
+            (total_transaction_value * 0.001 / NULLIF(total_transactions, 0))
+        ),
+        2
+    ) AS estimated_clv
+FROM customer_txn_summary
+WHERE tenure_months > 0
+ORDER BY estimated_clv DESC;

@@ -1,0 +1,20 @@
+-- High-Value Customers with Multiple Products
+-- This query finds customers who have BOTH a funded savings account AND a funded investment plan
+-- It counts their savings and investment products and sums their total deposits
+
+SELECT 
+    u.id AS owner_id,
+    u.name,
+    COUNT(DISTINCT CASE WHEN s.transaction_status = 'funded' THEN s.id END) AS savings_count,
+    COUNT(DISTINCT CASE WHEN p.status_id = 'funded' THEN p.id END) AS investment_count,
+    -- Sum total deposits from both savings and investment accounts
+    SUM(CASE WHEN s.transaction_status = 'funded' THEN s.new_balance ELSE 0 END) +
+    SUM(CASE WHEN p.status_id = 'funded' THEN p.amount ELSE 0 END) AS total_deposits
+FROM users_customuser u
+LEFT JOIN savings_savingsaccount s ON u.id = s.owner_id
+LEFT JOIN plans_plan p ON u.id = p.owner_id
+WHERE s.transaction_status = 'funded' OR p.status_id = 'funded'
+GROUP BY u.id, u.name
+-- Keep only customers with at least one funded savings and one funded investment
+HAVING savings_count > 0 AND investment_count > 0
+ORDER BY total_deposits DESC;
